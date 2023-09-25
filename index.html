@@ -9,13 +9,25 @@
         <link rel="stylesheet" href="./src/css/main.css">
     </head>
     <body>
+        Device:
         <select id="input-picker">
             <option>Detecting devices...</option>
+        </select>
+
+        Filter:
+        <select id="filter-picker">
+            <option value="none">None</option>
+            <option value="jsScanlines">Simulate scan lines (Javascript)</option>
+            <option value="jsVerticalHold">Simulate vertical hold failure (Javascript)</option>
         </select>
 
         <video id="video" class="hidden">Waiting for video...</video>
 
         <canvas id="visible-canvas"></canvas>
+
+
+        FPS:
+        <div id="fps-counter"></div>
 
         <script src="./src/js/video-filter.js"></script>
     </body>

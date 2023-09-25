@@ -14,43 +14,34 @@ let visibleCanvasContext = visibleCanvasElement.getContext('2d');
 
 let hiddenCanvasContext;
 
-// First pass gets use the list of video devices.
+let filterPicker = document.getElementById("filter-picker");
+filterPicker.addEventListener("change", pickFilter);
+
+let fpsCounter = document.getElementById('fps-counter');
+
+// Get the list of all available video devices so we can create an input picker.
 let getUserMediaPromise = navigator.mediaDevices.getUserMedia({ video: true });
 getUserMediaPromise.then(createInputPicker);
 
 let rafRequestId = false;
 
-/*
+let currentFilter = false;
 
-    Some approaches using media stream track procssing and web codecs, which is
-    not well documented, and which is not supported in Firefox.
+const availableFilters = {
+    jsScanlines: jsScanLines,
+    jsVerticalHold: jsVerticalHold
+};
 
-*/
+function pickFilter () {
+    var filterKey = filterPicker.value;
 
-/*
-
-    This approach uses window.createImageBitmap and MediaStreamTrackProcessor
-    to process video frames, but this is miserably slow, like a frame every few
-    seconds if that.
-
-*/
-// function playSelectedInput (stream) {
-//     let track = stream.getTracks()[0];
-//     let processor = new MediaStreamTrackProcessor(track);
-
-//     let buffer;
-
-//     let outputStream = new WritableStream({
-//         // Adapted from https://github.com/mganeko/videotrackreader_demo/blob/main/mediastreamtrackprocessor.html
-//         async write(videoFrame) {
-//             const bitmap = await window.createImageBitmap(videoFrame);
-//             canvasContext.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0, canvasElement.width, canvasElement.height);
-//             bitmap.close();
-//         }        
-//     });
-
-//     processor.readable.pipeTo(outputStream);
-// }
+    if (availableFilters[filterKey]) {
+        currentFilter = availableFilters[filterKey];
+    }
+    else {
+        currentFilter = false;
+    }
+}
 
 function playSelectedInput (stream) {
     const track = stream.getTracks()[0];
@@ -132,53 +123,98 @@ function startPolling() {
     rafRequestId = window.requestAnimationFrame(processSingleFrame);
 }
 
+let fpsData = [];
+
 function processSingleFrame () {
     if (hiddenCanvasContext) {
         hiddenCanvasContext.drawImage(videoElement, 0, 0);
         const imageData = hiddenCanvasContext.getImageData(0, 0, videoWidth, videoHeight);
-    
+
+        if (currentFilter) {
+            currentFilter(imageData);
+        }
         // TODO: Pass the image data through to WASM and process it there.
 
-        // Approximate scanlines and gaps on a CRT by creating 240 vertical
-        // bands of darkness.
-        
-        let bandHeight = videoHeight / 480;
-        for (let band = 0; band < 480; band += 2) {
-            let approximateRow = band * bandHeight;
-            let closestExactRow = Math.round(approximateRow);
-            let startIndex = closestExactRow * videoWidth * 4;
-            for (let colOffset = 0; colOffset < videoWidth * 4; colOffset += 4) {
-                // Just set the alpha to 0
-                imageData.data[startIndex + colOffset] = 0;
-                imageData.data[startIndex + colOffset + 1] = 0;
-                imageData.data[startIndex + colOffset + 2] = 0;
-            }
+        visibleCanvasContext.putImageData(imageData, 0, 0);
 
-            if (approximateRow !== closestExactRow) {
-                let bandOverlapPercent = closestExactRow < approximateRow ? approximateRow - closestExactRow : closestExactRow - approximateRow;
-                let adjacentRow = closestExactRow < approximateRow ? closestExactRow + 1 : closestExactRow - 1;
+        fpsData.push(Date.now());
+        if (fpsData.length === 10) {
+            let tenFrameMs = fpsData[9] - fpsData[0]; // ms / ten frames
+            let avgFrameMs = tenFrameMs / 10;
+            let fps = Math.round (1000/avgFrameMs);
 
-                if (adjacentRow > 0 && adjacentRow < videoHeight) {
-                    let startIndex = adjacentRow * videoWidth * 4;
-                    for (let colOffset = 0; colOffset < videoWidth * 4; colOffset += 4) {
-                        imageData.data[startIndex + colOffset] = Math.round(imageData.data[startIndex + colOffset] * (1 - bandOverlapPercent));
-                        imageData.data[startIndex + colOffset + 1] = Math.round(imageData.data[startIndex + colOffset + 1] * (1 - bandOverlapPercent));
-                        imageData.data[startIndex + colOffset + 2] = Math.round(imageData.data[startIndex + colOffset + 2] * (1 - bandOverlapPercent));
-                    }
+            fpsCounter.innerText = fps;
+            
+            fpsData = [];
+        }
+
+        // Tee up the next iteration
+        rafRequestId = window.requestAnimationFrame(processSingleFrame);
+    }
+}
+
+// Filters
+
+
+// Approximate scanlines and gaps on a CRT by creating 240 vertical
+// bands of darkness.
+function jsScanLines (imageData) {
+    let bandHeight = videoHeight / 480;
+    for (let band = 0; band < 480; band += 2) {
+        let approximateRow = band * bandHeight;
+        let closestExactRow = Math.round(approximateRow);
+        let startIndex = closestExactRow * videoWidth * 4;
+        for (let colOffset = 0; colOffset < videoWidth * 4; colOffset += 4) {
+            imageData.data.set([0,0,0,255], startIndex + colOffset);
+        }
+
+        if (approximateRow !== closestExactRow) {
+            let bandOverlapPercent = closestExactRow < approximateRow ? approximateRow - closestExactRow : closestExactRow - approximateRow;
+            let adjacentRow = closestExactRow < approximateRow ? closestExactRow + 1 : closestExactRow - 1;
+
+            if (adjacentRow > 0 && adjacentRow < videoHeight) {
+                let startIndex = adjacentRow * videoWidth * 4;
+                for (let colOffset = 0; colOffset < videoWidth * 4; colOffset += 4) {
+                    imageData.data[startIndex + colOffset] = Math.round(imageData.data[startIndex + colOffset] * (1 - bandOverlapPercent));
+                    imageData.data[startIndex + colOffset + 1] = Math.round(imageData.data[startIndex + colOffset + 1] * (1 - bandOverlapPercent));
+                    imageData.data[startIndex + colOffset + 2] = Math.round(imageData.data[startIndex + colOffset + 2] * (1 - bandOverlapPercent));
                 }
             }
         }
+    }
+}
 
-        visibleCanvasContext.putImageData(imageData, 0, 0);
-    
-        // Tee up the next iteration
-        rafRequestId = window.requestAnimationFrame(processSingleFrame);
+// Crude simulation of vertical hold issues.
+let verticalOffset = 0;
+// TODO: Make the speed and direction configurable
+let verticalHoldDelta = -15;
+
+function jsVerticalHold (imageData) {
+    // Simulate a black band at the edges, like an old CRT.
+    let blackBand = new Uint8ClampedArray(videoWidth * 4 * 5);
+    let blackPixel = [0,0,0,255];
+    for (let a = 0; a < blackBand.length; a += 4) {
+        blackBand.set(blackPixel, a);
+    }
+
+    imageData.data.set(blackBand);
+    imageData.data.set(blackBand, imageData.data.length - blackBand.length);
+
+    verticalOffset = (videoHeight + verticalOffset + verticalHoldDelta) % videoHeight;
+
+    if (verticalOffset) {
+        let sliceIndex = verticalOffset * videoWidth * 4;
+        let firstSlice = imageData.data.slice(0, sliceIndex);
+        let secondSlice = imageData.data.slice(sliceIndex);
+
+        imageData.data.set(secondSlice);
+        imageData.data.set(firstSlice, secondSlice.length);
     }
 }
 
 // TODO: Wire up listener for device disconnection?
 
 
-// TODO: Pass video stream through WASM function to transform it.
+// TODO: Add WASM version of scanlines as a proof-of-concept.
 
 // TODO: Create a project that uses (p)react and typescript.
