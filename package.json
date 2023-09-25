@@ -1,0 +1,25 @@
+{
+  "name": "as-video-filter",
+  "version": "0.0.1",
+  "description": "A sample WASM webcam filter written using AssemblyScript.",
+  "main": "index.html",
+  "scripts": {
+    "test": "node tests",
+    "asbuild:debug": "asc src/assembly/index.ts --target debug",
+    "asbuild:release": "asc src/assembly/index.ts --target release",
+    "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+    "start": "npx serve ."
+  },
+  "author": "Tony Atkins <duhrer@gmail.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "assemblyscript": "0.27.9"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./build/release.js",
+      "types": "./build/release.d.ts"
+    }
+  }
+}

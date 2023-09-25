@@ -1,0 +1,11 @@
+.hidden {
+    display: none;
+}
+
+canvas {
+    height: 100%;
+}
+
+video {
+    height: 100%;
+}
