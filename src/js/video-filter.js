@@ -30,7 +30,8 @@ let currentFilter = false;
 
 const availableFilters = {
     jsScanlines: jsScanLines,
-    jsVerticalHold: jsVerticalHold
+    jsVerticalHold: jsVerticalHold,
+    jsVerticalHoldAndScanLines: jsVerticalHoldAndScanLines
 };
 
 function pickFilter () {
@@ -217,6 +218,12 @@ function jsVerticalHold (imageData) {
         imageData.data.set(secondSlice);
         imageData.data.set(firstSlice, secondSlice.length);
     }
+}
+
+// Simple test of chaining filters.
+function jsVerticalHoldAndScanLines (imageData) {
+    jsVerticalHold(imageData);
+    jsScanLines(imageData);
 }
 
 // TODO: Wire up listener for device disconnection?
