@@ -17,6 +17,7 @@ let hiddenCanvasContext;
 let filterPicker = document.getElementById("filter-picker");
 filterPicker.addEventListener("change", pickFilter);
 
+let fpsContainer = document.querySelector('.fps');
 let fpsCounter = document.getElementById('fps-counter');
 
 // Get the list of all available video devices so we can create an input picker.
@@ -68,6 +69,9 @@ function playSelectedInput (stream) {
         visibleCanvasElement.setAttribute("height", videoHeight);
 
 
+        // Display the FPS stats
+        fpsContainer.classList.remove("hidden");
+
         startPolling();
     };
 }
@@ -96,6 +100,9 @@ function selectVideoInput (event) {
     if (inputId === "-1") {
         videoElement.srcObject = undefined;
         visibleCanvasContext.clearRect(0, 0, videoWidth, videoHeight);
+
+        // Hide the FPS stats
+        fpsContainer.classList.add("hidden");
     }
     else {
         // Targeted pass gets us a specific input.
