@@ -1,8 +1,3 @@
-/*
-    TODO: Import video processing bits.
-    import { add } from "./build/release.js";
-*/
-
 let inputPicker = document.getElementById("input-picker");
 
 let videoElement = document.getElementById("video");
@@ -20,19 +15,19 @@ filterPicker.addEventListener("change", pickFilter);
 let fpsContainer = document.querySelector('.fps');
 let fpsCounter = document.getElementById('fps-counter');
 
-// Get the list of all available video devices so we can create an input picker.
-let getUserMediaPromise = navigator.mediaDevices.getUserMedia({ video: true });
-getUserMediaPromise.then(createInputPicker);
-
 let rafRequestId = false;
 
 let currentFilter = false;
 
-const availableFilters = {
-    jsScanlines: jsScanLines,
-    jsVerticalHold: jsVerticalHold,
-    jsVerticalHoldAndScanLines: jsVerticalHoldAndScanLines
-};
+let exports, memory;
+instantiateWasm();
+
+// Get the list of all available video devices so we can create an input picker.
+let getUserMediaPromise = navigator.mediaDevices.getUserMedia({ video: true });
+getUserMediaPromise.then(createInputPicker);
+getUserMediaPromise.catch(function (error) {
+    console.error(error);
+});
 
 function pickFilter () {
     var filterKey = filterPicker.value;
@@ -69,6 +64,7 @@ function playSelectedInput (stream) {
         visibleCanvasElement.setAttribute("width", videoWidth);
         visibleCanvasElement.setAttribute("height", videoHeight);
 
+        exports.setDimensions(videoWidth, videoHeight);
 
         // Display the FPS stats
         fpsContainer.classList.remove("hidden");
@@ -229,6 +225,75 @@ function jsVerticalHoldAndScanLines (imageData) {
 // TODO: Wire up listener for device disconnection?
 
 
-// TODO: Add WASM version of scanlines as a proof-of-concept.
+function generateWasmWrapper (fnName) {
+    return function (imageData) {
+        if (exports && fnName && exports[fnName] && memory) {
+            // TODO: Consider how best to instantiate this, as the working dimensions may change.
+            const wasmByteMemoryArray = new Uint8Array(memory.buffer);
 
+            // Write image data to shared buffer
+            wasmByteMemoryArray.set(imageData.data);
+
+            // Call WASM function
+            exports[fnName]();
+
+            // TODO: Manage this somewhere else.
+            let bytesToSet = videoHeight * videoWidth * 4;
+
+            // Write updated data back to image data.
+            imageData.data.set(wasmByteMemoryArray.slice(0, bytesToSet));
+        }
+    } 
+}
+
+let asScanlines = generateWasmWrapper('addScanLines');
+
+let asVerticalHold = generateWasmWrapper('applyVerticalHold');
+
+let asCombineWithRotatedSelf = generateWasmWrapper('combineWithRotatedSelf');
+
+let asCombineWithMirroredSelf = generateWasmWrapper('combineWithMirroredSelf');
+
+function asChainedKaleidoscope (imageData) {
+    asCombineWithRotatedSelf(imageData);
+    asCombineWithMirroredSelf(imageData);
+}
+
+// Utility function to load WASM, adapted from:
+// https://github.com/torch2424/wasm-by-example/blob/master/demo-util/instantiateWasm.js
+// https://github.com/torch2424/wasm-by-example/blob/master/examples/reading-and-writing-graphics/demo/assemblyscript/index.js
+
+async function instantiateWasm () {
+    // TODO: Make this configurable?
+    //const url = './build/debug.wasm';
+    const url = './build/release.wasm';
+    const importObject = {
+        env: {
+            abort: () => { console.error("WASM load aborted.");}
+        }
+    }
+
+    if (!WebAssembly.instantiateStreaming) {
+        throw(new Error("Can't instantiate WASM, no streaming instantiation available."));
+    }
+
+    let wasmModule = await WebAssembly.instantiateStreaming(
+        fetch(url),
+        importObject
+    );
+
+    exports = wasmModule.instance.exports;
+    memory = wasmModule.instance.exports.memory;
+}
+
+const availableFilters = {
+    jsScanlines: jsScanLines,
+    jsVerticalHold: jsVerticalHold,
+    jsVerticalHoldAndScanLines: jsVerticalHoldAndScanLines,
+    asScanlines: asScanlines,
+    asVerticalHold: asVerticalHold,
+    asCombineWithRotatedSelf: asCombineWithRotatedSelf,
+    asCombineWithMirroredSelf: asCombineWithMirroredSelf,
+    asChainedKaleidoscope: asChainedKaleidoscope
+};
 // TODO: Create a project that uses (p)react and typescript.

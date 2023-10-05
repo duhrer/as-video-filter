@@ -19,7 +19,8 @@
 }
 
 canvas {
-    align-self: center;
+    /* Borked in Chrome, forces much smaller size */
+    /* align-self: center; */
     height: 100%;
 }
 

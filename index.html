@@ -2,10 +2,6 @@
 <html lang="en">
     <head>
         <title>WebASM Webcam Filter Demo</title>
-        <!-- <script type="module">
-        import { add } from "./build/release.js";
-        document.body.innerText = add(1, 2);
-        </script> -->
         <link rel="stylesheet" href="./src/css/main.css">
     </head>
     <body>
@@ -20,10 +16,15 @@
                 <div>
                     Filter:
                     <select id="filter-picker">
-                        <option value="none">None</option>
+                        <option value="none" selected>None</option>
                         <option value="jsScanlines">Simulate scan lines (Javascript)</option>
                         <option value="jsVerticalHold">Simulate vertical hold failure (Javascript)</option>
                         <option value="jsVerticalHoldAndScanLines">Vertical hold and scan lines (Javscript)</option>
+                        <option value="asScanlines">Simulate scan lines (AssemblyScript)</option>,
+                        <option value="asVerticalHold">Simulate vertical hold failure (AssemblyScript)</option>,
+                        <option value="asCombineWithRotatedSelf">Combine image with its own 180 degree rotation (AssemblyScript)</option>
+                        <option value="asCombineWithMirroredSelf">Combine image with its mirror image (AssemblyScript)</option>
+                        <option value="asChainedKaleidoscope">Kaleidoscope, both mirrored and rotated (AssemblyScript)</option>
                     </select>        
                 </div>
             </div>
